@@ -88,6 +88,15 @@ message lands on a board that is nearly dead, where little space is left. A fres
 that happens to be unwinnable usually gets no flag, because the proof would cost more
 time than a phone should spend. The app never claims a deal is lost when it is not.
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/board.png" width="300" alt="A dealt Klondike board on a Light Phone III"><br>
+  <sub>A fresh deal. Filled pips are spades and clubs, outlined are hearts and diamonds.</sub>
+</p>
+
+Taken on a Light Phone III.
+
 ## Layout of this repository
 
 This is the light-sdk tree. The game lives in the `tool/` module that the SDK reserves
@@ -197,7 +206,7 @@ winnable verdict then has its line replayed move by move, and the line must end 
 
 ## The gi-os Light App collection
 
-Eight tools for the Light Phone III, all open source, all built in one run.
+Nine tools for the Light Phone III, all open source, all built in one run.
 
 | Tool | What it does | Built on |
 | --- | --- | --- |
@@ -209,6 +218,7 @@ Eight tools for the Light Phone III, all open source, all built in one run.
 | [LightFog](https://github.com/gi-os/LightFog) | Fog of World companion, GPS recorder and fog map | Fork of [garado/light-topographic](https://github.com/garado/light-topographic) |
 | [LightNonogram](https://github.com/gi-os/LightNonogram) | Picross, plus a generator that only ships solvable puzzles | Kotlin generator, light-sdk tool |
 | **LightSolitaire** (this repo) | Klondike, draw one, unlimited redeals | light-sdk |
+| [LightFastread](https://github.com/gi-os/LightFastread) | RSVP speed reader for EPUB and MOBI | Fork of [fluffyspace/FastRead](https://github.com/fluffyspace/FastRead) |
 
 The Light Phone does not sponsor or endorse any of these.
 
