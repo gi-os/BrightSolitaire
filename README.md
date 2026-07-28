@@ -118,7 +118,9 @@ cheap.
 | `tool/src/test/kotlin/com/thelightphone/solitaire/` | JVM unit tests, which CI runs before it builds anything |
 | `tool/lighttool.toml` | Tool identity and version. The release workflow checks the tag against it. |
 | `tool/src/main/res/drawable/loading_text_icon.xml` | The mark, which overrides the SDK splash drawable of the same name |
-| `tools/generate_icon.py` | Builds that mark and `assets/icon.png` from Public Sans |
+| `tool/src/main/res/mipmap/ic_launcher.xml` | Adaptive launcher icon, same mark |
+| `tool/src/{debug,release}/AndroidManifest.xml` | Declares the launcher icon the generated manifest omits |
+| `tools/generate_icon.py` | Builds the mark, the launcher icon and `assets/icon.png` from Public Sans |
 | `sdk/`, `plugin/`, `examples/`, `docs/` | Upstream light-sdk |
 
 ## Build
@@ -152,6 +154,14 @@ The mark is a white capital S on black, in Public Sans, matching how LightFog dr
 first letter of its name in `scripts/generate-icon.js`. `tools/generate_icon.py` pulls the
 real glyph outline out of the font, so the drawable is a true vector rather than a trace,
 and writes `assets/icon.png` for this page at the same time.
+
+The same mark is also a real launcher icon, declared from a build-type manifest rather
+than `src/main`, which is ordinary manifest merging and leaves the SDK's generated
+manifest alone. The LightOS toolbox still shows only the name, so this is what `adb`,
+system settings and any other launcher display. It is an adaptive icon with no PNG
+fallbacks, since minSdk 34 leaves no device that needs one, and the letter sits at 62% of
+the 72 dp safe square so no launcher mask can clip it. Light's build pipeline uses the
+upstream plugin and would simply not pick the manifest up, which is fine.
 
 ```sh
 python3 tools/generate_icon.py path/to/PublicSans-Regular.ttf

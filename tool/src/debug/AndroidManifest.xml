@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The Light SDK generates the manifest from lighttool.toml and forbids a
+    hand-written src/main/AndroidManifest.xml. It emits no android:icon, because
+    LightOS lists tools by name and never loads one.
+
+    This declares the launcher icon anyway, for everything that is not the LightOS
+    toolbox: adb, system settings, and any other launcher on the device. It lives
+    in a build-type source set rather than src/main, which is ordinary manifest
+    merging and leaves the SDK's own manifest untouched.
+
+    Light's own build pipeline uses the upstream plugin, so a Tool Library build
+    would simply not pick this up. Nothing breaks either way.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher" />
+</manifest>
