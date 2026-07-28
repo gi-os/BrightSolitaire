@@ -55,6 +55,7 @@ fun CardView(
     background: Color,
     modifier: Modifier = Modifier,
     showCenterGlyph: Boolean = true,
+    borderWidth: Dp = 1.dp,
 ) {
     val shape = RoundedCornerShape(width * 0.11f)
     Box(
@@ -62,7 +63,7 @@ fun CardView(
             .size(width, height)
             .clip(shape)
             .background(background)
-            .border(1.dp, foreground, shape)
+            .border(borderWidth, foreground, shape)
     ) {
         Row(
             modifier = Modifier
@@ -101,6 +102,7 @@ fun CardBack(
     foreground: Color,
     background: Color,
     modifier: Modifier = Modifier,
+    emphasized: Boolean = false,
 ) {
     val shape = RoundedCornerShape(width * 0.11f)
     Box(
@@ -113,7 +115,11 @@ fun CardBack(
             Modifier
                 .align(Alignment.Center)
                 .size(width * 0.68f, height * 0.76f)
-                .border(1.dp, background, RoundedCornerShape(width * 0.06f))
+                .border(
+                    width = if (emphasized) 3.dp else 1.dp,
+                    color = background,
+                    shape = RoundedCornerShape(width * 0.06f),
+                )
         )
     }
 }
@@ -124,11 +130,12 @@ fun EmptySlot(
     height: Dp,
     outline: Color,
     modifier: Modifier = Modifier,
+    borderWidth: Dp = 1.dp,
     content: (@Composable () -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(width * 0.11f)
     Box(
-        modifier = modifier.size(width, height).border(1.dp, outline, shape),
+        modifier = modifier.size(width, height).border(borderWidth, outline, shape),
         contentAlignment = Alignment.Center,
     ) {
         content?.invoke()

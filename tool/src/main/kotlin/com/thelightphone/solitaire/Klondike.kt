@@ -21,7 +21,13 @@ data class Game(
     val tableau: List<List<TableauCard>>,
     val moves: Int = 0,
 ) {
-    val isWon: Boolean get() = foundations.sumOf { it.size } == 52
+    /**
+     * Cards only ever leave the table for a foundation, so an empty table is a
+     * win. Stated this way rather than counting to 52 so that tests can run the
+     * same rules over a cut-down deck.
+     */
+    val isWon: Boolean
+        get() = stock.isEmpty() && waste.isEmpty() && tableau.all { it.isEmpty() }
 
     companion object {
         const val COLUMNS = 7
@@ -126,57 +132,12 @@ fun Game.move(source: Pile, cardIndex: Int, destination: Pile): Game? {
 /**
  * One tap. Sends the card wherever it obviously wants to go: foundation first
  * for a single card, then the leftmost legal tableau column.
+ *
+ * The choice itself lives in [autoAction] so the UI can animate the move it is
+ * about to make rather than guessing what happened.
  */
-fun Game.autoMove(source: Pile, cardIndex: Int): Game? = when (source) {
-    Pile.Stock -> draw()
-
-    Pile.Waste -> {
-        val card = waste.lastOrNull()
-        if (card == null) null else bestDestination(card, single = true, fromColumn = -1)
-            ?.let { move(source, waste.lastIndex, it) }
-    }
-
-    is Pile.Foundation -> null // pull cards back off a foundation by dragging
-
-    is Pile.Tableau -> {
-        val column = tableau[source.index]
-        if (cardIndex !in column.indices) {
-            null
-        } else if (!column[cardIndex].faceUp) {
-            if (cardIndex == column.lastIndex) flipTop(source.index) else null
-        } else {
-            val run = column.drop(cardIndex)
-            if (!isValidRun(run)) {
-                null
-            } else {
-                val head = run.first().card
-                // Moving a whole column onto an empty column gains nothing.
-                val allowEmpty = cardIndex > 0
-                bestDestination(head, single = run.size == 1, fromColumn = source.index, allowEmpty = allowEmpty)
-                    ?.let { move(source, cardIndex, it) }
-            }
-        }
-    }
-}
-
-private fun Game.bestDestination(
-    card: Card,
-    single: Boolean,
-    fromColumn: Int,
-    allowEmpty: Boolean = true,
-): Pile? {
-    if (single) {
-        for (i in 0 until Game.FOUNDATIONS) {
-            if (acceptsOnFoundation(i, card)) return Pile.Foundation(i)
-        }
-    }
-    for (i in 0 until Game.COLUMNS) {
-        if (i == fromColumn) continue
-        if (tableau[i].isEmpty() && !allowEmpty) continue
-        if (acceptsOnTableau(i, card)) return Pile.Tableau(i)
-    }
-    return null
-}
+fun Game.autoMove(source: Pile, cardIndex: Int): Game? =
+    autoAction(source, cardIndex)?.let { perform(it) }
 
 // ---------------------------------------------------------------- internals
 
