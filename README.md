@@ -123,7 +123,7 @@ cheap.
 | `tool/src/test/kotlin/com/thelightphone/solitaire/` | JVM unit tests, which CI runs before it builds anything |
 | `tool/lighttool.toml` | Tool identity and version. The release workflow checks the tag against it. |
 | `tool/src/main/res/drawable/loading_text_icon.xml` | The mark, which overrides the SDK splash drawable of the same name |
-| `tool/src/main/res/mipmap/ic_launcher.xml` | Adaptive launcher icon, same mark |
+| `tool/src/main/res/mipmap-*/ic_launcher.*` | Launcher icon: adaptive for Android, PNG for tooling |
 | `tool/src/{debug,release}/AndroidManifest.xml` | Declares the launcher icon the generated manifest omits |
 | `tools/generate_icon.py` | Builds the mark, the launcher icon and `assets/icon.png` from Public Sans |
 | `sdk/`, `plugin/`, `examples/`, `docs/` | Upstream light-sdk |
@@ -163,10 +163,20 @@ and writes `assets/icon.png` for this page at the same time.
 The same mark is also a real launcher icon, declared from a build-type manifest rather
 than `src/main`, which is ordinary manifest merging and leaves the SDK's generated
 manifest alone. The LightOS toolbox still shows only the name, so this is what `adb`,
-system settings and any other launcher display. It is an adaptive icon with no PNG
-fallbacks, since minSdk 34 leaves no device that needs one, and the letter sits at 62% of
-the 72 dp safe square so no launcher mask can clip it. Light's build pipeline uses the
-upstream plugin and would simply not pick the manifest up, which is fine.
+system settings, Obtainium and any other launcher display. Light's build pipeline uses
+the upstream plugin and would simply not pick the manifest up, which is fine.
+
+It ships as an adaptive icon in `mipmap-anydpi-v26`, with the letter at 62% of the 72 dp
+safe square so no launcher mask can clip it, **and** as flat PNGs at the five densities.
+Android never reads the PNGs, because minSdk 34 means the `anydpi-v26` folder always
+wins. They are there for everything that reads an APK without applying resource
+qualifiers, which is most tooling. An icon that exists only as vector XML comes back
+blank in those: they find the reference, cannot rasterise it, and give up.
+
+One thing worth knowing if you track this in Obtainium: it takes the icon from the
+**installed** package, through `PackageManager`, and caches it. It cannot show an icon
+for a version you have not installed, and no release asset changes that. After updating,
+open the app's page in Obtainium once; that path re-reads the icon and ignores the cache.
 
 ```sh
 python3 tools/generate_icon.py path/to/PublicSans-Regular.ttf
