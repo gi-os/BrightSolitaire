@@ -286,27 +286,30 @@ class HomeScreen(
                     }
                     val slots = remember(geometry, game) { buildSlots(game, geometry) }
                     var drag by remember { mutableStateOf<DragState?>(null) }
-                    var flight by remember { mutableStateOf<Flight?>(null) }
-                    val progress = remember { Animatable(0f) }
+                    // Foundations empty out as the waterfall launches them.
+                    var emptied by remember(game) { mutableStateOf(List(Game.FOUNDATIONS) { 0 }) }
 
-                    LaunchedEffect(table.animation?.id) {
-                        val animation = table.animation
-                        if (animation == null) {
-                            flight = null
-                            return@LaunchedEffect
-                        }
-                        val next = flightFor(animation, game, geometry, slots)
-                        if (next == null) {
-                            flight = null
-                            return@LaunchedEffect
-                        }
-                        flight = next
-                        progress.snapTo(0f)
+                    val animation = table.animation
+                    // Worked out during composition rather than in an effect. An
+                    // effect runs after the frame it belongs to has been drawn, so
+                    // starting the flight there draws the card at its destination
+                    // for one frame first, which reads as a teleport followed by an
+                    // animation. Deriving it here means the very first frame of the
+                    // new board already has the card hidden and in flight.
+                    val flightPlan = remember(animation?.id) {
+                        animation?.let { flightFor(it, game, geometry, slots) }
+                    }
+                    val progress = remember(animation?.id) { Animatable(0f) }
+                    var landed by remember(animation?.id) { mutableStateOf(false) }
+                    val flight = if (landed) null else flightPlan
+
+                    LaunchedEffect(animation?.id) {
+                        if (flightPlan == null) return@LaunchedEffect
                         progress.animateTo(
                             targetValue = 1f,
                             animationSpec = tween(FLIGHT_MILLIS, easing = FastOutSlowInEasing),
                         )
-                        flight = null
+                        landed = true
                     }
 
                     val hint = table.hint
@@ -315,10 +318,14 @@ class HomeScreen(
                         val dragged = drag?.let { active ->
                             slot.pile == active.source && slot.cardIndex >= active.cardIndex
                         } == true
-                        val landing = flight?.let { active ->
-                            slot.pile == active.destination && slot.cardIndex >= active.firstLandedIndex
-                        } == true
-                        if (dragged || landing) continue
+                        if (dragged) continue
+
+                        // A card in flight must not also be sitting on its
+                        // destination. For the stock, waste and foundations only the
+                        // top card is drawn, so step down to the one underneath
+                        // instead of leaving the pile looking empty while the card
+                        // travels.
+                        val cardIndex = flight.visibleIndexFor(slot) ?: continue
 
                         val isHintSource = hint.marksSource(slot)
                         val isHintTarget = hint.marksTarget(slot, game)
@@ -331,7 +338,7 @@ class HomeScreen(
 
                         when (val pile = slot.pile) {
                             Pile.Stock ->
-                                if (slot.cardIndex >= 0) {
+                                if (cardIndex >= 0) {
                                     CardBack(
                                         width = geometry.cardW,
                                         height = geometry.cardH,
@@ -351,9 +358,9 @@ class HomeScreen(
                                 }
 
                             Pile.Waste ->
-                                if (slot.cardIndex >= 0) {
+                                if (cardIndex >= 0) {
                                     CardView(
-                                        card = game.waste[slot.cardIndex],
+                                        card = game.waste[cardIndex],
                                         width = geometry.cardW,
                                         height = geometry.cardH,
                                         foreground = cardForeground,
@@ -365,10 +372,11 @@ class HomeScreen(
                                     EmptySlot(geometry.cardW, geometry.cardH, outline, placement, border)
                                 }
 
-                            is Pile.Foundation ->
-                                if (slot.cardIndex >= 0) {
+                            is Pile.Foundation -> {
+                                val index = cardIndex - emptied.getOrElse(pile.index) { 0 }
+                                if (index >= 0) {
                                     CardView(
-                                        card = game.foundations[pile.index][slot.cardIndex],
+                                        card = game.foundations[pile.index][index],
                                         width = geometry.cardW,
                                         height = geometry.cardH,
                                         foreground = cardForeground,
@@ -379,10 +387,11 @@ class HomeScreen(
                                 } else {
                                     EmptySlot(geometry.cardW, geometry.cardH, outline, placement, border)
                                 }
+                            }
 
                             is Pile.Tableau -> {
                                 val column = game.tableau[pile.index]
-                                val entry = column.getOrNull(slot.cardIndex)
+                                val entry = column.getOrNull(cardIndex)
                                 when {
                                     entry == null ->
                                         EmptySlot(geometry.cardW, geometry.cardH, outline, placement, border)
@@ -404,7 +413,7 @@ class HomeScreen(
                                             foreground = cardForeground,
                                             background = cardBackground,
                                             modifier = placement,
-                                            showCenterGlyph = slot.cardIndex == column.lastIndex,
+                                            showCenterGlyph = cardIndex == column.lastIndex,
                                             borderWidth = border,
                                         )
                                 }
@@ -518,23 +527,49 @@ class HomeScreen(
                     }
 
                     if (game.isWon) {
-                        Box(
-                            modifier = Modifier.fillMaxSize().background(background),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                LightText(text = "You win", variant = LightTextVariant.Heading)
-                                LightText(
-                                    text = "${game.moves} moves",
-                                    variant = LightTextVariant.Detail,
-                                    lighten = true,
-                                    modifier = Modifier.padding(top = 8.dp, bottom = 24.dp),
-                                )
-                                LightText(
-                                    text = "Deal again",
-                                    variant = LightTextVariant.Copy,
-                                    modifier = Modifier.lightClickable { viewModel.newGame() },
-                                )
+                        var waterfallDone by remember(game) { mutableStateOf(false) }
+
+                        if (!waterfallDone) {
+                            VictoryWaterfall(
+                                game = game,
+                                cardWidth = geometry.cardW,
+                                cardHeight = geometry.cardH,
+                                foundationX = remember(geometry) {
+                                    (0 until Game.FOUNDATIONS).map { geometry.columnX(3 + it) }
+                                },
+                                foundationY = 0.dp,
+                                boardWidth = maxWidth,
+                                boardHeight = maxHeight,
+                                foreground = foreground,
+                                background = background,
+                                onLaunchedChange = { emptied = it },
+                                onFinished = { waterfallDone = true },
+                            )
+                            // Tap anywhere to cut it short.
+                            Box(
+                                Modifier
+                                    .fillMaxSize()
+                                    .lightClickable { waterfallDone = true }
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier.fillMaxSize().background(background),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    LightText(text = "You win", variant = LightTextVariant.Heading)
+                                    LightText(
+                                        text = "${game.moves} moves",
+                                        variant = LightTextVariant.Detail,
+                                        lighten = true,
+                                        modifier = Modifier.padding(top = 8.dp, bottom = 24.dp),
+                                    )
+                                    LightText(
+                                        text = "Deal again",
+                                        variant = LightTextVariant.Copy,
+                                        modifier = Modifier.lightClickable { viewModel.newGame() },
+                                    )
+                                }
                             }
                         }
                     }
@@ -658,6 +693,13 @@ private fun flightFor(
         endY = target.y,
     )
 }
+
+private fun Flight?.visibleIndexFor(slot: Slot): Int? = visibleCardIndex(
+    pile = slot.pile,
+    cardIndex = slot.cardIndex,
+    landing = this?.destination,
+    firstLandedIndex = this?.firstLandedIndex ?: 0,
+)
 
 private fun Game.pileSize(pile: Pile): Int = when (pile) {
     Pile.Stock -> stock.size

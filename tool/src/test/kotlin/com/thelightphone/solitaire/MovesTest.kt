@@ -181,4 +181,22 @@ class MovesTest {
         )
         assertTrue(redeal.cardsMovedBy(Action.Draw).isEmpty())
     }
+
+    @Test
+    fun `a pile that is receiving a card in flight does not also show it`() {
+        // Columns stack, so the landed cards are dropped and what they cover shows.
+        assertNull(visibleCardIndex(Pile.Tableau(2), 5, Pile.Tableau(2), 4), "the landed card")
+        assertNull(visibleCardIndex(Pile.Tableau(2), 4, Pile.Tableau(2), 4), "the first landed card")
+        assertEquals(3, visibleCardIndex(Pile.Tableau(2), 3, Pile.Tableau(2), 4), "the card underneath")
+
+        // Single card piles step down instead, or they look empty mid-flight.
+        assertEquals(2, visibleCardIndex(Pile.Waste, 3, Pile.Waste, 3))
+        assertEquals(0, visibleCardIndex(Pile.Foundation(1), 1, Pile.Foundation(1), 1))
+        assertEquals(-1, visibleCardIndex(Pile.Waste, 0, Pile.Waste, 0), "nothing underneath")
+
+        // Piles not involved are untouched, and so is a still board.
+        assertEquals(7, visibleCardIndex(Pile.Tableau(0), 7, Pile.Tableau(1), 2))
+        assertEquals(7, visibleCardIndex(Pile.Tableau(0), 7, null, 0))
+        assertEquals(-1, visibleCardIndex(Pile.Tableau(3), -1, null, 0), "an empty column")
+    }
 }

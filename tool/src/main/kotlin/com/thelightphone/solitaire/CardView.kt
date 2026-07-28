@@ -144,7 +144,7 @@ fun EmptySlot(
 
 // ---------------------------------------------------------------- shapes
 
-private fun suitPath(suit: Suit, canvas: Size): Path {
+internal fun suitPath(suit: Suit, canvas: Size): Path {
     val s = min(canvas.width, canvas.height)
     val ox = (canvas.width - s) / 2f
     val oy = (canvas.height - s) / 2f

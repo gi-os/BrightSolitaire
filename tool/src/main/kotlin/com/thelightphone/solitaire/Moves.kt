@@ -215,6 +215,33 @@ private fun Game.destinationFor(
     return null
 }
 
+/**
+ * Which card of a pile to draw while cards are in the air, or null to draw none.
+ *
+ * A card being carried across the screen must not also be sitting on the pile it
+ * is headed for. Columns stack visibly, so the cards that landed are dropped and
+ * whatever they cover shows through on its own. The stock, waste and foundations
+ * only ever draw their top card, so those have to step down to the card
+ * underneath or the pile looks empty for as long as the move takes.
+ *
+ * Lives here rather than next to the drawing code so it can be tested without a
+ * screen.
+ *
+ * @param firstLandedIndex index of the first card that just landed on [landing].
+ */
+fun visibleCardIndex(
+    pile: Pile,
+    cardIndex: Int,
+    landing: Pile?,
+    firstLandedIndex: Int,
+): Int? {
+    if (landing == null || pile != landing) return cardIndex
+    return when (pile) {
+        is Pile.Tableau -> if (cardIndex >= firstLandedIndex) null else cardIndex
+        else -> firstLandedIndex - 1
+    }
+}
+
 /** The cards an action picks up, for the animation to carry across the screen. */
 fun Game.cardsMovedBy(action: Action): List<Card> = when (action) {
     // A redeal moves the whole waste at once, so nothing flies across the screen.

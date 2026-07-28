@@ -1,3 +1,5 @@
+<img src="assets/icon.png" alt="" width="72" align="left" />
+
 # LightSolitaire
 
 Klondike solitaire for the Light Phone III. Draw one, unlimited redeals. A LightOS tool
@@ -39,6 +41,16 @@ would only burn a move.
 A tapped card travels to where it lands. The move takes 170 ms, which is long enough to
 show you where the card went and short enough to stay out of the way. A drag does not
 animate, because your finger already did.
+
+Win, and the cards waterfall off the foundations: they arc out, bounce along the bottom
+and slide off the sides, painting trails as they go. Tap to cut it short. The trails come
+from an offscreen bitmap that the app draws into once a frame and never clears, so the
+cost per frame is the few cards in the air rather than every position they have held.
+
+The physics carry no drawing code, which lets a unit test step the whole cascade and
+assert that it always ends. An animation that ran forever would leave the win screen
+unreachable, so the test checks it at five different frame rates, and on a board one dp
+across.
 
 The game saves to the tool DataStore after every move and on pause, so leaving and
 coming back drops you on the same board. The app throws away a save that does not
@@ -87,6 +99,8 @@ cheap.
 | `tool/src/main/kotlin/com/thelightphone/solitaire/Klondike.kt` | Every rule. Immutable `Game`, no Android imports. |
 | `tool/src/main/kotlin/com/thelightphone/solitaire/Moves.kt` | Moves as data: the generator, hint ranking, the dead-end check |
 | `tool/src/main/kotlin/com/thelightphone/solitaire/Solver.kt` | Can this still be won? Winnable, unwinnable, or unknown. |
+| `tool/src/main/kotlin/com/thelightphone/solitaire/Victory.kt` | Waterfall physics. Numbers only, no drawing. |
+| `tool/src/main/kotlin/com/thelightphone/solitaire/VictoryLayer.kt` | Draws the waterfall into an accumulating bitmap |
 | `tool/src/main/kotlin/com/thelightphone/solitaire/Cards.kt` | Suits, cards, seeded deck |
 | `tool/src/main/kotlin/com/thelightphone/solitaire/CardView.kt` | Canvas suit glyphs, card face, card back |
 | `tool/src/main/kotlin/com/thelightphone/solitaire/HomeScreen.kt` | `@InitialScreen`, view model, table geometry, tap and drag |
@@ -94,6 +108,8 @@ cheap.
 | `tool/src/main/kotlin/com/thelightphone/solitaire/SolitaireStore.kt` | DataStore read and write |
 | `tool/src/test/kotlin/com/thelightphone/solitaire/` | JVM unit tests, which CI runs before it builds anything |
 | `tool/lighttool.toml` | Tool identity and version. The release workflow checks the tag against it. |
+| `tool/src/main/res/drawable/loading_text_icon.xml` | The mark, which overrides the SDK splash drawable of the same name |
+| `tools/generate_icon.py` | Builds that mark and `assets/icon.png` from Public Sans |
 | `sdk/`, `plugin/`, `examples/`, `docs/` | Upstream light-sdk |
 
 ## Build
@@ -109,6 +125,28 @@ This repo vendors the SDK, so the build resolves nothing from GitHub Packages.
 To run against the LightOS emulator, set
 `serverPackage = "com.thelightphone.sdk.emulator"` in `tool/lighttool.toml`. Set it back
 to `com.lightos` before a device build.
+
+## The mark
+
+LightOS has no launcher icon. The toolbox lists tools by name, nothing in the SDK or the
+emulator ever calls `loadIcon`, and the SDK generates the manifest itself with no
+`android:icon` in it. A hand-written `src/main/AndroidManifest.xml` is a deliberate build
+error, so there is no hook to add one.
+
+The splash is the one place a tool can show a mark of its own. `sdk:client` ships a
+drawable named `loading_text_icon`, the "loading..." wordmark. Resources in the
+application module take precedence over resources from a library module, so
+`tool/src/main/res/drawable/loading_text_icon.xml` replaces it with no manifest change and
+no rule bent.
+
+The mark is a white capital S on black, in Public Sans, matching how LightFog draws the
+first letter of its name in `scripts/generate-icon.js`. `tools/generate_icon.py` pulls the
+real glyph outline out of the font, so the drawable is a true vector rather than a trace,
+and writes `assets/icon.png` for this page at the same time.
+
+```sh
+python3 tools/generate_icon.py path/to/PublicSans-Regular.ttf
+```
 
 ## Tests
 
@@ -127,6 +165,11 @@ rather than to a broken game.
 
 `MovesTest` asserts that the app can play every move it offers, and that a tap and the
 move it reports are the same move. The animation would lie otherwise.
+
+`VictoryTest` steps the waterfall to the end at 15, 30, 60, 90 and 120 frames a second, and
+on a one dp board, and asserts every run finishes inside the patience limit. It also checks
+that all 52 cards launch exactly once, that none falls through the bottom or reaches an
+infinite coordinate, and that cards leave in both directions.
 
 `SolverTest` guards the unwinnable claim. The state key must be one to one: a collision
 would drop a branch that wins and still let the search report that it looked everywhere.
