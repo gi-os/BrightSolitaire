@@ -221,7 +221,7 @@ winnable verdict then has its line replayed move by move, and the line must end 
 
 ## The gi-os Light App collection
 
-Nine tools for the Light Phone III, all open source, all built in one run.
+Ten tools for the Light Phone III, all open source, all built in one run.
 
 | Tool | What it does | Built on |
 | --- | --- | --- |
@@ -234,6 +234,7 @@ Nine tools for the Light Phone III, all open source, all built in one run.
 | [LightNonogram](https://github.com/gi-os/LightNonogram) | Picross, plus a generator that only ships solvable puzzles | Kotlin generator, light-sdk tool |
 | **LightSolitaire** (this repo) | Klondike, draw one, unlimited redeals | light-sdk |
 | [LightFastread](https://github.com/gi-os/LightFastread) | RSVP speed reader for EPUB and MOBI | Fork of [fluffyspace/FastRead](https://github.com/fluffyspace/FastRead) |
+| [LightTip](https://github.com/gi-os/LightTip) | Tip calculator, plus a receipt splitter that reads the line items | Plain Android |
 
 The Light Phone does not sponsor or endorse any of these.
 
