@@ -34,6 +34,9 @@ thing follows the LightOS theme and flips with light and dark mode.
 | Hint | Suggests a move. Tap again for the next one. |
 | New, Undo | Top bar. Undo remembers 120 moves. |
 
+The number in the middle of the top bar is the move count. It is the same number the win
+screen reports.
+
 Tapping a foundation does nothing on purpose, so you cannot unstack a suit you already
 banked. Auto-move also refuses to shuffle a lone king between two empty columns, which
 would only burn a move.
@@ -43,7 +46,8 @@ show you where the card went and short enough to stay out of the way. A drag doe
 animate, because your finger already did.
 
 Win, and the cards waterfall off the foundations: they arc out, bounce along the bottom
-and slide off the sides, painting trails as they go. Tap to cut it short. The trails come
+and slide off the sides, painting trails as they go. Tap to cut it short. Behind it the
+screen reads **You win**, your move count, and **Deal again**. The trails come
 from an offscreen bitmap that the app draws into once a frame and never clears, so the
 cost per frame is the few cards in the air rather than every position they have held.
 
@@ -75,13 +79,14 @@ Two different messages can appear at the bottom of the board. The difference mat
 in the stock for anything playable. When it shows this, the deal is over. Undo, or deal
 again.
 
-**This deal cannot be won** is a proof, and it appears only when the proof is cheap. Hint
+**This deal can't be won** is a proof, and it appears only when the proof is cheap. Hint
 also starts a search in the background. The search walks positions you can still reach,
 and keys each one so that no two positions can be confused for each other. If it runs out
 of positions before it runs out of budget, then it visited every position you can reach
 and none of them wins. The deal is lost.
 
-If the search hits the budget first, the app says nothing.
+While that search runs, the board shows **Checking**. If the search hits the budget first,
+the message clears and the app claims nothing.
 
 Klondike is hard to solve in general, so an honest tool has to be able to shrug. This
 message lands on a board that is nearly dead, where little space is left. A fresh deal
@@ -92,7 +97,7 @@ time than a phone should spend. The app never claims a deal is lost when it is n
 
 <p align="center">
   <img src="docs/screenshots/board.png" width="300" alt="A dealt Klondike board on a Light Phone III"><br>
-  <sub>A fresh deal. Filled pips are spades and clubs, outlined are hearts and diamonds.</sub>
+  <sub>A fresh deal, zero moves. Filled pips are spades and clubs, outlined are hearts and diamonds.</sub>
 </p>
 
 Taken on a Light Phone III.
