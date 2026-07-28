@@ -1,0 +1,14 @@
+[tool]
+id = "com.thelightphone.solitaire"
+label = "Solitaire"
+versionCode = 1
+versionName = "1.0.0"
+permissions = []
+orientation = "portrait"
+
+# Built for the phone. Swap to "com.thelightphone.sdk.emulator" to run against
+# the LightOS emulator instead.
+serverPackage = "com.lightos"
+
+# The release workflow checks versionName against the git tag, and versionCode
+# has to increase every release or Android will refuse to install the update.
