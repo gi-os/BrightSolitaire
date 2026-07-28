@@ -71,8 +71,9 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           pre-emulator-launch-script: ./scripts/avd-lp3.sh
+          # This runs under /usr/bin/sh (dash), which has no pipefail.
           script: |
-            set -euo pipefail
+            set -eu
 
             adb shell settings put global window_animation_scale 0
             adb shell settings put global transition_animation_scale 0
