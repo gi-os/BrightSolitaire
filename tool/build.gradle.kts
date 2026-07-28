@@ -46,6 +46,11 @@ android {
         targetSdk = rootProject.ext["targetSdk"] as Int
 
         manifestPlaceholders["sdkVersion"] = property("sdkVersion") as String
+
+        // Screenshot tests only. The official Light builder extracts from
+        // tool/src/main and never sees tool/src/androidTest, so none of this
+        // reaches a signed build.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -81,4 +86,13 @@ dependencies {
     implementation(project(":sdk:client"))
     testImplementation(libs.kotlin.test)
     ksp(libs.androidx.room.compiler)
+
+    // Screenshot tests. Keep these on androidTest/debug only. Anything moved to
+    // implementation would land in the shipped tool and face the SDK allowlist.
+    androidTestImplementation(platform(libs.compose.bom))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    // Supplies the host activity that createComposeRule() renders into.
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
