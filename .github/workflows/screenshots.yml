@@ -24,6 +24,7 @@ on:
       - 'tool/build.gradle.kts'
       - '.github/workflows/screenshots.yml'
       - 'scripts/avd-lp3.sh'
+      - 'scripts/pull-screenshots.sh'
 
 permissions:
   contents: write
@@ -72,25 +73,15 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           pre-emulator-launch-script: ./scripts/avd-lp3.sh
-          # This runs under /usr/bin/sh (dash), which has no pipefail.
+          # Each LINE here runs as its own `sh -c`. No shell variables survive
+          # between lines and no multi-line constructs work, so anything with
+          # real logic goes in a script file.
           script: |
-            set -eu
-
             adb shell settings put global window_animation_scale 0
             adb shell settings put global transition_animation_scale 0
             adb shell settings put global animator_duration_scale 0
-
             ./gradlew --console=plain :tool:connectedDebugAndroidTest
-
-            # applicationId comes from tool.id in lighttool.toml, but read it off
-            # the device so a rename here cannot break the pull.
-            PKG=$(adb shell pm list packages | tr -d '\r' | sed 's/^package://' \
-                  | grep -i solitaire | grep -v '\.test$' | head -1)
-            echo "package: $PKG"
-
-            mkdir -p captured
-            adb pull "/sdcard/Android/data/$PKG/files/screenshots/." captured/
-            ls -la captured/
+            ./scripts/pull-screenshots.sh captured
 
       - name: Check something was captured
         run: |
