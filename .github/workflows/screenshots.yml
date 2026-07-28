@@ -21,6 +21,7 @@ on:
       - 'tool/src/main/kotlin/com/thelightphone/solitaire/CardView.kt'
       - 'tool/src/main/kotlin/com/thelightphone/solitaire/HomeScreen.kt'
       - 'tool/src/androidTest/**'
+      - 'tool/build.gradle.kts'
       - '.github/workflows/screenshots.yml'
       - 'scripts/avd-lp3.sh'
 
