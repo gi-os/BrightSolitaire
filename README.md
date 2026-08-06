@@ -1,12 +1,12 @@
 <img src="assets/icon.png" alt="" width="72" align="left" />
 
-# LightSolitaire
+# BrightSolitaire
 
 Klondike solitaire for the Light Phone III. Draw one, unlimited redeals. A LightOS tool
 built on the official [light-sdk](https://github.com/lightphone/light-sdk) with Kotlin,
 Jetpack Compose, `LightScreen` and `LightViewModel`, themed with `sdk:ui`.
 
-[Download the latest APK](https://github.com/gi-os/LightSolitaire/releases/latest). See
+[Download the latest APK](https://github.com/gi-os/BrightSolitaire/releases/latest). See
 [INSTALL.md](INSTALL.md).
 
 Part of the [gi-os Light App collection](#the-gi-os-light-app-collection).
@@ -131,8 +131,8 @@ cheap.
 ## Build
 
 ```sh
-git clone https://github.com/gi-os/LightSolitaire.git
-cd LightSolitaire
+git clone https://github.com/gi-os/BrightSolitaire.git
+cd BrightSolitaire
 ./gradlew :tool:testDebugUnitTest :tool:assembleDebug
 ```
 
@@ -155,7 +155,7 @@ application module take precedence over resources from a library module, so
 `tool/src/main/res/drawable/loading_text_icon.xml` replaces it with no manifest change and
 no rule bent.
 
-The mark is a white capital S on black, in Public Sans, matching how LightFog draws the
+The mark is a white capital S on black, in Public Sans, matching how FogLight draws the
 first letter of its name in `scripts/generate-icon.js`. `tools/generate_icon.py` pulls the
 real glyph outline out of the font, so the drawable is a true vector rather than a trace,
 and writes `assets/icon.png` for this page at the same time.
@@ -222,7 +222,7 @@ winnable verdict then has its line replayed move by move, and the line must end 
   is the base of this repository. This repo vendors the whole tree. The SDK client, the UI kit, the Gradle
   plugin, the lint rules and the builder are their work, released under MIT before the
   platform was even public. Thank you.
-- **[gi-os/LightNYCSubway](https://github.com/gi-os/LightNYCSubway)** set the repository
+- **[gi-os/BrightTransit](https://github.com/gi-os/BrightTransit)** set the repository
   pattern this one copies. Fork light-sdk, write the tool into the module the SDK
   reserves for it, leave upstream alone, and let a workflow build the APK against a
   version check.
@@ -235,17 +235,17 @@ Twelve tools for the Light Phone III, all open source, all built in one run.
 
 | Tool | What it does | Built on |
 | --- | --- | --- |
-| [LightPass](https://github.com/gi-os/LightPass) | Photograph a movie ticket, keep the stub | Plain Android |
+| [BrightPasses](https://github.com/gi-os/BrightPasses) | Photograph a movie ticket, keep the stub | Plain Android |
 | [LightQR](https://github.com/gi-os/LightQR) | QR scanner, plus a browser generator | Plain Android |
-| [LightRSS](https://github.com/gi-os/LightRSS) | RSS and Atom reader with images and QR subscribe | light-sdk, fork of [zachattack323/LightRSS](https://github.com/zachattack323/LightRSS) |
-| [LightNYCSubway](https://github.com/gi-os/LightNYCSubway) | Live MTA subway arrivals | light-sdk fork |
+| [BrightNews](https://github.com/gi-os/BrightNews) | RSS and Atom reader with images and QR subscribe | light-sdk, fork of [zachattack323/LightRSS](https://github.com/zachattack323/LightRSS) |
+| [BrightTransit](https://github.com/gi-os/BrightTransit) | Live MTA subway arrivals | light-sdk fork |
 | [chat](https://github.com/gi-os/chat) | iMessage over a self-hosted BlueBubbles server | Fork of [craigeley/chat](https://github.com/craigeley/chat) |
-| [LightFog](https://github.com/gi-os/LightFog) | Fog of World companion, GPS recorder and fog map | Fork of [garado/light-topographic](https://github.com/garado/light-topographic) |
-| [LightNonogram](https://github.com/gi-os/LightNonogram) | Picross, plus a generator that only ships solvable puzzles | Kotlin generator, light-sdk tool |
-| **LightSolitaire** (this repo) | Klondike, draw one, unlimited redeals | light-sdk |
-| [LightFastread](https://github.com/gi-os/LightFastread) | RSVP speed reader for EPUB and MOBI | Fork of [fluffyspace/FastRead](https://github.com/fluffyspace/FastRead) |
-| [LightTip](https://github.com/gi-os/LightTip) | Tip calculator, plus a receipt splitter that reads the line items | Plain Android |
-| [LightNoise](https://github.com/gi-os/LightNoise) | Twelve synthesized sounds, a two-layer mixer and a sleep timer | Plain Android |
+| [FogLight](https://github.com/gi-os/FogLight) | Fog of World companion, GPS recorder and fog map | Fork of [garado/light-topographic](https://github.com/garado/light-topographic) |
+| [BrightNonogram](https://github.com/gi-os/BrightNonogram) | Picross, plus a generator that only ships solvable puzzles | Kotlin generator, light-sdk tool |
+| **BrightSolitaire** (this repo) | Klondike, draw one, unlimited redeals | light-sdk |
+| [BrightLibrary](https://github.com/gi-os/BrightLibrary) | RSVP speed reader for EPUB and MOBI | Fork of [fluffyspace/FastRead](https://github.com/fluffyspace/FastRead) |
+| [BrightTip](https://github.com/gi-os/BrightTip) | Tip calculator, plus a receipt splitter that reads the line items | Plain Android |
+| [BrightNoise](https://github.com/gi-os/BrightNoise) | Twelve synthesized sounds, a two-layer mixer and a sleep timer | Plain Android |
 | [LightPods](https://github.com/gi-os/LightPods) | AirPods battery, in-ear and lid status | Plain Android, ports [LibrePods](https://github.com/kavishdevar/librepods) |
 
 The Light Phone does not sponsor or endorse any of these. Licences vary per repo.
