@@ -6,6 +6,17 @@ Klondike solitaire for the Light Phone III. Draw one, unlimited redeals. A Light
 built on the official [light-sdk](https://github.com/lightphone/light-sdk) with Kotlin,
 Jetpack Compose, `LightScreen` and `LightViewModel`, themed with `sdk:ui`.
 
+## Install via BrightMarket
+
+<p align="center">
+  <img src="https://gi-os.github.io/brightmarket-index/assets/brightmarket-qr.png" alt="Scan to open BrightMarket" width="180" />
+</p>
+
+Scan the code above, or visit
+**[gi-os.github.io/brightmarket-index/browse.html](https://gi-os.github.io/brightmarket-index/browse.html)**, to install
+and keep this app updated through **BrightMarket** — no Play Store, no PC
+required.
+
 [Download the latest APK](https://github.com/gi-os/BrightSolitaire/releases/latest). See
 [INSTALL.md](INSTALL.md).
 
