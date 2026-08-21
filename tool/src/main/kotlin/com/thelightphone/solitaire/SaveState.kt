@@ -3,17 +3,25 @@ package com.thelightphone.solitaire
 /**
  * A compact text encoding of a deal so the game survives leaving the tool.
  *
- * One line, five sections. A card is rank then suit initial ("1S", "13H"); a
+ * One line, seven sections. A card is rank then suit initial ("1S", "13H"); a
  * tableau card adds "+" face up or "-" face down.
  *
- *   1|13S,4H|2C|1H,2H;;;|1S+,7D-;13C+|41
- *   ^ ^      ^  ^         ^            ^
- *   | stock  |  foundations, ; between  moves
- *   version  waste          tableau columns, ; between
+ *   2|13S,4H|2C|1H,2H;;;|1S+,7D-;13C+|41|K
+ *   ^ ^      ^  ^         ^            ^  ^
+ *   | stock  |  foundations, ; between  |  which game
+ *   version  waste          tableau     moves
+ *                           columns, ; between
+ *
+ * Version 2 added the last field. A version 1 line is still read, as Klondike,
+ * because that is what every one of them is and throwing them away would end
+ * somebody's game to save a branch.
  */
 object SaveState {
 
-    private const val VERSION = 1
+    private const val VERSION = 2
+
+    /** The oldest layout this can still read. */
+    private const val OLDEST_VERSION = 1
 
     fun encode(game: Game): String = listOf(
         VERSION.toString(),
@@ -24,6 +32,7 @@ object SaveState {
             column.joinToString(",") { it.card.encode() + if (it.faceUp) "+" else "-" }
         },
         game.moves.toString(),
+        game.variant.token.toString(),
     ).joinToString("|")
 
     /** Returns null for anything malformed, so a bad save just starts a new deal. */
@@ -31,8 +40,9 @@ object SaveState {
         if (text.isNullOrBlank()) return null
         return runCatching {
             val parts = text.split("|")
-            if (parts.size != 6) return null
-            if (parts[0].toIntOrNull() != VERSION) return null
+            val version = parts[0].toIntOrNull() ?: return null
+            if (version < OLDEST_VERSION || version > VERSION) return null
+            if (parts.size != if (version >= 2) 7 else 6) return null
 
             val stock = parts[1].splitCards()
             val waste = parts[2].splitCards()
@@ -48,11 +58,17 @@ object SaveState {
                 }
             }
             val moves = parts[5].toIntOrNull() ?: return null
+            val variant = if (version >= 2) {
+                val token = parts[6].singleOrNull() ?: return null
+                Variant.entries.firstOrNull { it.token == token } ?: return null
+            } else {
+                Variant.KLONDIKE
+            }
 
             if (foundations.size != Game.FOUNDATIONS) return null
             if (tableau.size != Game.COLUMNS) return null
 
-            val game = Game(stock, waste, foundations, tableau, moves)
+            val game = Game(stock, waste, foundations, tableau, moves, variant)
             // Refuse anything that isn't a real deal rather than resuming a corrupt board.
             val all = stock + waste + foundations.flatten() + tableau.flatten().map { it.card }
             if (all.size != 52 || all.toSet().size != 52) return null

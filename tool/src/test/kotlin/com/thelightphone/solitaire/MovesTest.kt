@@ -12,7 +12,7 @@ class MovesTest {
     @Test
     fun `every generated action can actually be performed`() {
         for (seed in 1L..60L) {
-            var game = Game.deal(seed)
+            var game = Game.deal(Variant.KLONDIKE, seed)
             repeat(40) {
                 val actions = game.legalActions()
                 for (action in actions) {
@@ -26,7 +26,7 @@ class MovesTest {
     @Test
     fun `a tap and the action it reports always agree`() {
         for (seed in 1L..40L) {
-            var game = Game.deal(seed)
+            var game = Game.deal(Variant.KLONDIKE, seed)
             repeat(60) {
                 val board = game
                 var advance: Game? = null
@@ -113,7 +113,7 @@ class MovesTest {
 
     @Test
     fun `drawing is offered when nothing on the table can move`() {
-        assertTrue(Game.deal(5).hints().isNotEmpty(), "a fresh deal always has a suggestion")
+        assertTrue(Game.deal(Variant.KLONDIKE, 5).hints().isNotEmpty(), "a fresh deal always has a suggestion")
 
         val stuckButAlive = Game(
             stock = listOf(Card(1, Suit.SPADES)),
@@ -150,7 +150,7 @@ class MovesTest {
         )
         assertTrue(dead.legalActions().none { it is Action.Shift }, "fixture is not actually stuck")
         assertTrue(dead.isDeadEnd(), "no ace anywhere and no column can take anything")
-        assertFalse(Game.deal(1).isDeadEnd(), "a fresh deal always has something to do")
+        assertFalse(Game.deal(Variant.KLONDIKE, 1).isDeadEnd(), "a fresh deal always has something to do")
     }
 
     @Test

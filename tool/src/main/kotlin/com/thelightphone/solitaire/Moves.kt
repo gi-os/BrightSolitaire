@@ -51,7 +51,7 @@ fun Game.legalActions(): List<Action> {
         val firstUp = column.indexOfFirst { it.faceUp }
         if (firstUp == -1) continue
         for (i in firstUp..column.lastIndex) {
-            if (!isValidRun(column.drop(i))) continue
+            if (!variant.canPickUp(column.drop(i))) continue
             val head = column[i].card
 
             if (i == column.lastIndex) {
@@ -84,6 +84,9 @@ fun Game.legalActions(): List<Action> {
         }
     }
 
+    // Yukon deals every card onto the table, so both of these stay empty for the
+    // whole game and it never gets a draw. Nothing here needs to ask which game
+    // it is.
     if (stock.isNotEmpty() || waste.isNotEmpty()) actions += Action.Draw
 
     return actions
@@ -162,7 +165,7 @@ private fun Game.revealsFaceDownCard(shift: Action.Shift): Boolean {
  * legal column.
  */
 fun Game.autoAction(source: Pile, cardIndex: Int): Action? = when (source) {
-    Pile.Stock -> Action.Draw
+    Pile.Stock -> if (variant.hasStock) Action.Draw else null
 
     Pile.Waste -> waste.lastOrNull()?.let { card ->
         destinationFor(card, single = true, fromColumn = -1)
@@ -180,7 +183,7 @@ fun Game.autoAction(source: Pile, cardIndex: Int): Action? = when (source) {
                 if (cardIndex == column.lastIndex) Action.TurnOver(source.index) else null
             else -> {
                 val run = column.drop(cardIndex)
-                if (!isValidRun(run)) {
+                if (!variant.canPickUp(run)) {
                     null
                 } else {
                     destinationFor(

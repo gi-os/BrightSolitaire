@@ -15,13 +15,13 @@ class SolverTest {
     fun `two different positions never share a key`() {
         val keys = HashSet<String>()
         for (seed in 1L..400L) {
-            assertTrue(keys.add(Game.deal(seed).stateKey()), "seed $seed collided")
+            assertTrue(keys.add(Game.deal(Variant.KLONDIKE, seed).stateKey()), "seed $seed collided")
         }
     }
 
     @Test
     fun `the key ignores the move counter`() {
-        val game = Game.deal(9)
+        val game = Game.deal(Variant.KLONDIKE, 9)
         assertEquals(game.stateKey(), game.copy(moves = 500).stateKey())
     }
 
@@ -108,7 +108,7 @@ class SolverTest {
 
     @Test
     fun `a fresh deal on a tiny budget is honest about not knowing`() {
-        val analysis = Solver.analyze(Game.deal(4), budget = 200)
+        val analysis = Solver.analyze(Game.deal(Variant.KLONDIKE, 4), budget = 200)
         assertEquals(Verdict.UNKNOWN, analysis.verdict)
         assertNull(analysis.firstMove, "an unknown verdict must not suggest a line")
         assertTrue(analysis.positionsVisited > 200)
@@ -299,7 +299,7 @@ class SolverTest {
 
         // A handful of real deals played a few moves in, for variety.
         for (seed in 1L..20L) {
-            var game = Game.deal(seed)
+            var game = Game.deal(Variant.KLONDIKE, seed)
             repeat(6) { game = game.draw() ?: game }
             positions += game
         }

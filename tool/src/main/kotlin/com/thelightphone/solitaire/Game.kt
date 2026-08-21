@@ -1,10 +1,14 @@
 package com.thelightphone.solitaire
 
 /**
- * Klondike solitaire, draw one, unlimited redeals.
+ * A game of solitaire on a seven column table: Klondike or Yukon, see [Variant].
  *
  * [Game] is immutable. Every legal action returns a new [Game] or null if the
  * action is not legal. That makes undo a list of old states and nothing else.
+ *
+ * One type covers both games rather than two that mostly agree, because
+ * everything downstream — the solver, the hints, the save format, the screen —
+ * would otherwise need writing twice and could then disagree twice.
  */
 
 sealed interface Pile {
@@ -20,6 +24,7 @@ data class Game(
     val foundations: List<List<Card>>,
     val tableau: List<List<TableauCard>>,
     val moves: Int = 0,
+    val variant: Variant = Variant.KLONDIKE,
 ) {
     /**
      * Cards only ever leave the table for a foundation, so an empty table is a
@@ -29,26 +34,46 @@ data class Game(
     val isWon: Boolean
         get() = stock.isEmpty() && waste.isEmpty() && tableau.all { it.isEmpty() }
 
+    /**
+     * Nothing on the table is hidden any more. Not the same as won, and in
+     * Yukon not even the same as decided — see [finishingLine].
+     */
+    val isFullyRevealed: Boolean
+        get() = tableau.all { column -> column.all { it.faceUp } }
+
     companion object {
         const val COLUMNS = 7
         const val FOUNDATIONS = 4
 
-        fun deal(seed: Long): Game {
+        /**
+         * Cards each Yukon column gets face up, on top of its face down ones.
+         * The first column is the exception and gets one card, face up.
+         */
+        private const val YUKON_FACE_UP = 5
+
+        fun deal(variant: Variant, seed: Long): Game {
             val deck = shuffledDeck(seed).toMutableList()
             val columns = ArrayList<List<TableauCard>>(COLUMNS)
             for (col in 0 until COLUMNS) {
-                val cards = ArrayList<TableauCard>(col + 1)
-                for (row in 0..col) {
-                    val card = deck.removeAt(deck.lastIndex)
-                    cards.add(TableauCard(card, faceUp = row == col))
+                val faceDown = if (variant == Variant.YUKON && col == 0) 0 else col
+                val faceUp = when {
+                    variant == Variant.KLONDIKE -> 1
+                    col == 0 -> 1
+                    else -> YUKON_FACE_UP
                 }
+                val cards = ArrayList<TableauCard>(faceDown + faceUp)
+                repeat(faceDown) { cards.add(TableauCard(deck.removeAt(deck.lastIndex), faceUp = false)) }
+                repeat(faceUp) { cards.add(TableauCard(deck.removeAt(deck.lastIndex), faceUp = true)) }
                 columns.add(cards)
             }
             return Game(
+                // Yukon deals the whole pack onto the table, so the deck is empty
+                // by here and the stock never gets a card for the rest of the game.
                 stock = deck.toList(),
                 waste = emptyList(),
                 foundations = List(FOUNDATIONS) { emptyList() },
                 tableau = columns,
+                variant = variant,
             )
         }
     }
@@ -68,19 +93,7 @@ fun Game.acceptsOnTableau(index: Int, card: Card): Boolean {
     return top.card.isRed != card.isRed && card.rank == top.card.rank - 1
 }
 
-/** A movable run is face up and descends in alternating colors. */
-fun isValidRun(cards: List<TableauCard>): Boolean {
-    if (cards.isEmpty()) return false
-    if (cards.any { !it.faceUp }) return false
-    for (i in 0 until cards.lastIndex) {
-        val a = cards[i].card
-        val b = cards[i + 1].card
-        if (a.rank != b.rank + 1 || a.isRed == b.isRed) return false
-    }
-    return true
-}
-
-/** True if [cardIndex] in column [index] is the head of a run the player can pick up. */
+/** True if [cardIndex] in column [index] is the head of a group the player can pick up. */
 fun Game.isDraggable(pile: Pile, cardIndex: Int): Boolean = when (pile) {
     Pile.Stock -> false
     Pile.Waste -> waste.isNotEmpty() && cardIndex == waste.lastIndex
@@ -88,7 +101,7 @@ fun Game.isDraggable(pile: Pile, cardIndex: Int): Boolean = when (pile) {
         cardIndex == foundations[pile.index].lastIndex
     is Pile.Tableau -> {
         val column = tableau[pile.index]
-        cardIndex in column.indices && isValidRun(column.drop(cardIndex))
+        cardIndex in column.indices && variant.canPickUp(column.drop(cardIndex))
     }
 }
 
@@ -165,7 +178,7 @@ private fun Game.removeFrom(source: Pile, cardIndex: Int): Pair<Game, List<Card>
             null
         } else {
             val run = column.drop(cardIndex)
-            if (!isValidRun(run)) {
+            if (!variant.canPickUp(run)) {
                 null
             } else {
                 copy(tableau = tableau.replaceAt(source.index, column.take(cardIndex))) to run.map { it.card }

@@ -2,7 +2,8 @@
 
 # BrightSolitaire
 
-Klondike solitaire for the Light Phone III. Draw one, unlimited redeals. A LightOS tool
+Solitaire for the Light Phone III. **Klondike**, draw one with unlimited redeals, and
+**Yukon**, where the whole pack is on the table from the first move. A LightOS tool
 built on the official [light-sdk](https://github.com/lightphone/light-sdk) with Kotlin,
 Jetpack Compose, `LightScreen` and `LightViewModel`, themed with `sdk:ui`.
 
@@ -22,6 +23,31 @@ every Bright app, at
 
 Part of the [gi-os Light App collection](#the-gi-os-light-app-collection).
 
+## Two games
+
+Both are dealt onto the same seven columns into the same four foundations, and the
+foundations work the same way: aces up, by suit. Everything else about them differs, and
+each difference is asked for by name in the code rather than guessed at from the shape of
+the board.
+
+| | Klondike | Yukon |
+| --- | --- | --- |
+| Dealt face down | 21 | 21 |
+| Dealt face up | 7 | 31 |
+| Stock | 24 cards, draw one, unlimited redeals | none — the pack is all on the table |
+| What you can pick up | a run: descending, alternating colours | **any face up card, and whatever sits on it** |
+| Empty column | a king | a king |
+
+That one rule in bold is the whole of Yukon. You move a card by carrying everything piled
+on top of it, so what you drag is usually nonsense and the reason to drag it is the card
+it uncovers. Nothing is hidden but the twenty-one cards under the columns, and there is
+no stock to shuffle through when you are stuck, so every deal is a position rather than a
+hand you are dealt into.
+
+**New** in the top bar asks which one. That tap is not free, and it is there anyway:
+dealing throws away the board you are on either way, and naming the game is the one place
+both can be reached from without spending a control in a bar four items wide.
+
 ## Reading a one-bit deck
 
 The panel is black and white, so shape carries the suit color instead of hue.
@@ -40,10 +66,11 @@ thing follows the LightOS theme and flips with light and dark mode.
 | --- | --- |
 | Tap a card | It goes to a foundation if it fits, otherwise to the leftmost legal column |
 | Tap a face-down card | It turns over, if it sits at the bottom of its column |
-| Tap the stock | Draw one. Tap the empty ring to redeal the waste. |
+| Tap the stock | Draw one. Tap the empty ring to redeal the waste. Klondike only — Yukon draws no stock or waste slot at all, rather than two outlines that never do anything. |
 | Drag | Manual placement, including a multi-card run, or pulling a card back off a foundation |
 | Hint | Suggests a move. Tap again for the next one. |
-| New, Undo | Top bar. Undo remembers 120 moves. |
+| Finish | Plays the rest of the game. Appears once no card is face down. |
+| New, Undo | Top bar. New asks which game. Undo remembers 120 moves. |
 
 The number in the middle of the top bar is the move count. It is the same number the win
 screen reports.
@@ -76,6 +103,39 @@ an emulator at another resolution. On an LP3, with about 411 x 472 dp of usable 
 that works out to a 53 dp card. A long column compresses its fan spacing instead of
 running off the bottom, and the bottom 44 dp stays clear for the LightOS back button.
 
+## Finish
+
+Once no card on the table is face down there is nothing left to find out. In Klondike
+what remains is almost always clerical — bank the aces, bank the twos, keep going — and
+making somebody tap fifty times through a foregone conclusion is not a game. So at that
+point, and not before, the top bar offers **Finish**.
+
+It only ever plays a line it has already found in full. A finish that ran out halfway,
+having rearranged the board on the way, would be worse than being told it could not be
+done — so when there is no line the board is not touched at all, and the message says
+**No quick finish from here**. That is deliberately not the same sentence as *This deal
+can't be won*: the search behind Finish is capped and gives up early, and the only thing
+that ever claims a deal is lost is the proof described below.
+
+Two attempts, cheapest first. A sweep that plays cards to the foundations and nothing
+else, lowest rank first, drawing through the stock when the table has nothing to give.
+Above its face down cards a Klondike column is always a run, so a Klondike board with
+nothing left face down is seven runs with their lowest cards at the bottom — which is
+exactly the shape the sweep walks straight through. Measured over sixty such boards it
+finished every one, in 62 moves on average, in ten milliseconds.
+
+Yukon does not come apart that neatly, so it falls back to a depth limited search: 220
+moves at most, foundations tried first, never taking a card back off a foundation. Over
+forty revealed Yukon boards it found a win every time, 129 moves on average. The cap is
+not really about search cost — you watch every one of those moves go past, and a line
+long enough to want skipping was not worth offering. A tap during the cascade takes the
+rest at once.
+
+The search is a separate thing from the one below and wants a different answer. That one
+asks whether a win exists at all and will follow a four thousand move path to prove that
+one does. Here a four thousand move path is no answer, because the line gets played out
+in front of somebody.
+
 ## Hints, and when a deal is dead
 
 A hint draws the card to move inverted, and puts a heavier outline on the square it goes
@@ -99,7 +159,7 @@ and none of them wins. The deal is lost.
 While that search runs, the board shows **Checking**. If the search hits the budget first,
 the message clears and the app claims nothing.
 
-Klondike is hard to solve in general, so an honest tool has to be able to shrug. This
+Both games are hard to solve in general, so an honest tool has to be able to shrug. This
 message lands on a board that is nearly dead, where little space is left. A fresh deal
 that happens to be unwinnable usually gets no flag, because the proof would cost more
 time than a phone should spend. The app never claims a deal is lost when it is not.
@@ -121,7 +181,9 @@ cheap.
 
 | Path | What it is |
 | --- | --- |
-| `tool/src/main/kotlin/com/thelightphone/solitaire/Klondike.kt` | Every rule. Immutable `Game`, no Android imports. |
+| `tool/src/main/kotlin/com/thelightphone/solitaire/Game.kt` | Every rule. Immutable `Game`, no Android imports. |
+| `tool/src/main/kotlin/com/thelightphone/solitaire/Variant.kt` | The three places Klondike and Yukon differ, and nothing else |
+| `tool/src/main/kotlin/com/thelightphone/solitaire/Finish.kt` | Playing out a game that is already decided |
 | `tool/src/main/kotlin/com/thelightphone/solitaire/Moves.kt` | Moves as data: the generator, hint ranking, the dead-end check |
 | `tool/src/main/kotlin/com/thelightphone/solitaire/Solver.kt` | Can this still be won? Winnable, unwinnable, or unknown. |
 | `tool/src/main/kotlin/com/thelightphone/solitaire/Victory.kt` | Waterfall physics. Numbers only, no drawing. |
@@ -204,9 +266,27 @@ deals with a greedy policy. After every single position it asserts that all 52 c
 present, that none repeats, that each foundation climbs in one suit, that no face-down
 card sits above a face-up one, and that every face-up run descends in alternating colors.
 
-`SaveStateTest` round-trips a fresh board, a board in progress and a finished one. A
-truncated, duplicated, wrong-version or otherwise damaged save must decode to nothing
-rather than to a broken game.
+`YukonTest` covers the three differences — the deal, that any face up group moves as one
+and that there is no stock — and then re-runs the shared machinery over Yukon boards:
+every offered move can be played, a tap and the move it reports agree, and 200 deals stay
+consistent through a greedy playout. Anything that quietly assumed the other game shows
+up there rather than on a phone.
+
+`FinishTest` replays every line the finish button hands back and insists the board is won
+at the bottom of it, over sixty revealed Klondike boards and forty revealed Yukon ones. It
+also checks the line never exceeds the cap, never takes a card back off a foundation, and
+never draws in a game with no stock. Building the Klondike boards is the interesting part:
+above its face down cards a Klondike column is always a run, so a revealed board is seven
+runs — and the round-robin deal it is tempting to write instead is a position no game of
+Klondike can reach, which is why an earlier version of this test said the finish never
+worked.
+
+`SaveStateTest` round-trips a fresh board, a board in progress and a finished one, in both
+games, and checks which game it was comes back with it. A truncated, duplicated,
+wrong-version or otherwise damaged save must decode to nothing rather than to a broken
+game. A save written before Yukon existed still reads, as Klondike: the version 1 format
+had no game field because there was only one game, and dropping those lines would end
+somebody's board to save a branch.
 
 `MovesTest` asserts that the app can play every move it offers, and that a tap and the
 move it reports are the same move. The animation would lie otherwise.
@@ -237,8 +317,9 @@ winnable verdict then has its line replayed move by move, and the line must end 
   pattern this one copies. Fork light-sdk, write the tool into the module the SDK
   reserves for it, leave upstream alone, and let a workflow build the APK against a
   version check.
-- Klondike itself belongs to nobody. The rules here follow the standard draw-one variant
-  with unlimited redeals.
+- Klondike and Yukon both belong to nobody. Klondike here is the standard draw-one variant
+  with unlimited redeals; Yukon is the standard deal of one, six, seven, eight, nine, ten
+  and eleven cards with five face up in every column but the first.
 
 ## The gi-os Light App collection
 
@@ -253,7 +334,7 @@ Twelve tools for the Light Phone III, all open source, all built in one run.
 | [chat](https://github.com/gi-os/chat) | iMessage over a self-hosted BlueBubbles server | Fork of [craigeley/chat](https://github.com/craigeley/chat) |
 | [FogLight](https://github.com/gi-os/FogLight) | Fog of World companion, GPS recorder and fog map | Fork of [garado/light-topographic](https://github.com/garado/light-topographic) |
 | [BrightNonogram](https://github.com/gi-os/BrightNonogram) | Picross, plus a generator that only ships solvable puzzles | Kotlin generator, light-sdk tool |
-| **BrightSolitaire** (this repo) | Klondike, draw one, unlimited redeals | light-sdk |
+| **BrightSolitaire** (this repo) | Klondike and Yukon, with a solver that finishes a decided game | light-sdk |
 | [BrightLibrary](https://github.com/gi-os/BrightLibrary) | RSVP speed reader for EPUB and MOBI | Fork of [fluffyspace/FastRead](https://github.com/fluffyspace/FastRead) |
 | [BrightTip](https://github.com/gi-os/BrightTip) | Tip calculator, plus a receipt splitter that reads the line items | Plain Android |
 | [BrightNoise](https://github.com/gi-os/BrightNoise) | Twelve synthesized sounds, a two-layer mixer and a sleep timer | Plain Android |

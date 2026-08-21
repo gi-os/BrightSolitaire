@@ -18,7 +18,7 @@ class KlondikeTest {
     @Test
     fun `every deal is a legal klondike layout`() {
         for (seed in 1L..200L) {
-            val game = Game.deal(seed)
+            val game = Game.deal(Variant.KLONDIKE, seed)
             game.assertInvariants("deal $seed")
             assertEquals(24, game.stock.size, "seed $seed stock")
             assertEquals(28, game.tableau.sumOf { it.size }, "seed $seed tableau")
@@ -32,15 +32,15 @@ class KlondikeTest {
 
     @Test
     fun `the same seed always deals the same game`() {
-        assertEquals(Game.deal(42), Game.deal(42))
-        assertFalse(Game.deal(42) == Game.deal(43))
+        assertEquals(Game.deal(Variant.KLONDIKE, 42), Game.deal(Variant.KLONDIKE, 42))
+        assertFalse(Game.deal(Variant.KLONDIKE, 42) == Game.deal(Variant.KLONDIKE, 43))
     }
 
     // ------------------------------------------------------------ the stock
 
     @Test
     fun `drawing through the stock and redealing preserves every card`() {
-        var game = Game.deal(7)
+        var game = Game.deal(Variant.KLONDIKE, 7)
         val original = game.stock.toSet()
         repeat(24) { game = assertNotNull(game.draw()) }
 
@@ -99,11 +99,11 @@ class KlondikeTest {
 
     @Test
     fun `a run must descend in alternating colors and be face up`() {
-        assertTrue(isValidRun(run(Card(9, Suit.SPADES), Card(8, Suit.HEARTS), Card(7, Suit.CLUBS))))
-        assertFalse(isValidRun(run(Card(9, Suit.SPADES), Card(8, Suit.CLUBS))), "same color")
-        assertFalse(isValidRun(run(Card(9, Suit.SPADES), Card(7, Suit.HEARTS))), "rank skip")
-        assertFalse(isValidRun(listOf(TableauCard(Card(9, Suit.SPADES), faceUp = false))))
-        assertFalse(isValidRun(emptyList()))
+        assertTrue(Variant.KLONDIKE.canPickUp(run(Card(9, Suit.SPADES), Card(8, Suit.HEARTS), Card(7, Suit.CLUBS))))
+        assertFalse(Variant.KLONDIKE.canPickUp(run(Card(9, Suit.SPADES), Card(8, Suit.CLUBS))), "same color")
+        assertFalse(Variant.KLONDIKE.canPickUp(run(Card(9, Suit.SPADES), Card(7, Suit.HEARTS))), "rank skip")
+        assertFalse(Variant.KLONDIKE.canPickUp(listOf(TableauCard(Card(9, Suit.SPADES), faceUp = false))))
+        assertFalse(Variant.KLONDIKE.canPickUp(emptyList()))
     }
 
     @Test
@@ -185,7 +185,7 @@ class KlondikeTest {
             tableau = List(7) { emptyList() },
         )
         assertTrue(won.isWon)
-        assertFalse(Game.deal(1).isWon)
+        assertFalse(Game.deal(Variant.KLONDIKE, 1).isWon)
     }
 
     // ------------------------------------------------------------ playouts
@@ -238,7 +238,7 @@ class KlondikeTest {
                     column.drop(firstUp).all { it.faceUp },
                     "$label: column $i hides a card above a face up one",
                 )
-                assertTrue(isValidRun(column.drop(firstUp)), "$label: column $i is not a legal run")
+                assertTrue(Variant.KLONDIKE.canPickUp(column.drop(firstUp)), "$label: column $i is not a legal run")
             }
         }
     }
@@ -249,7 +249,7 @@ class KlondikeTest {
      * Every state is remembered, so going in a circle ends the game.
      */
     private fun playOut(seed: Long): Game {
-        var game = Game.deal(seed)
+        var game = Game.deal(Variant.KLONDIKE, seed)
         val seen = HashSet<Game>()
         seen.add(game)
         var banked = 0

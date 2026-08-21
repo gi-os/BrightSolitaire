@@ -46,6 +46,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val UNDO_LIMIT = 120
 
@@ -57,7 +58,18 @@ private const val FLIGHT_MILLIS = 170
 
 private const val HINT_MILLIS = 3_000L
 
-enum class Notice { DEAD_END, UNWINNABLE }
+/**
+ * Between the moves of an automatic finish, and the length of each flight
+ * inside it. Quicker than a move you made yourself, because a hundred of them
+ * go past and none of them was your decision.
+ *
+ * The two are the same number on purpose: a card has to land before the next
+ * one leaves, or every flight is cut off part way and the cascade reads as a
+ * string of jumps rather than as cards being played.
+ */
+private const val FINISH_MILLIS = 90
+
+enum class Notice { DEAD_END, UNWINNABLE, NO_FINISH }
 
 /** A move in flight, for the tap animation. */
 data class MoveAnimation(
@@ -78,6 +90,8 @@ data class Table(
     val hint: Action? = null,
     val notice: Notice? = null,
     val checking: Boolean = false,
+    /** A finish is being looked for, or being played out. */
+    val finishing: Boolean = false,
 )
 
 class SolitaireViewModel(private val store: SolitaireStore) : LightViewModel<Unit>() {
@@ -86,8 +100,10 @@ class SolitaireViewModel(private val store: SolitaireStore) : LightViewModel<Uni
     private var hintCursor = 0
     private var animationId = 0L
     private var analysis: Job? = null
+    private var finish: Job? = null
+    private var hurry = false
 
-    val table = MutableStateFlow(Table(Game.deal(System.currentTimeMillis())))
+    val table = MutableStateFlow(Table(Game.deal(Variant.KLONDIKE, System.currentTimeMillis())))
     val canUndo = MutableStateFlow(false)
 
     init {
@@ -102,15 +118,18 @@ class SolitaireViewModel(private val store: SolitaireStore) : LightViewModel<Uni
         }
     }
 
-    fun newGame() {
+    /** Deals the game you are already playing unless you name another one. */
+    fun newGame(variant: Variant = table.value.game.variant) {
+        stopFinishing()
         history.clear()
         canUndo.value = false
         hintCursor = 0
-        table.value = Table(Game.deal(System.currentTimeMillis()))
+        table.value = Table(Game.deal(variant, System.currentTimeMillis()))
         persist()
     }
 
     fun undo() {
+        stopFinishing()
         val previous = history.removeLastOrNull() ?: return
         canUndo.value = history.isNotEmpty()
         hintCursor = 0
@@ -119,12 +138,60 @@ class SolitaireViewModel(private val store: SolitaireStore) : LightViewModel<Uni
     }
 
     fun tap(pile: Pile, cardIndex: Int) {
+        if (table.value.finishing) return
         val action = table.value.game.autoAction(pile, cardIndex) ?: return
         commit(action)
     }
 
     fun drop(source: Pile, cardIndex: Int, destination: Pile) {
+        if (table.value.finishing) return
         commit(Action.Shift(source, cardIndex, destination), animate = false)
+    }
+
+    /**
+     * Play the rest of the game.
+     *
+     * The whole line is found before the first card moves. A finish that ran out
+     * halfway would leave the board rearranged by moves nobody chose, which is
+     * worse than being told it could not be done — so if there is no line, the
+     * board is not touched at all.
+     *
+     * Finding it runs off the main thread because a Yukon board can take a
+     * moment. Playing it runs back on, a move at a time, because watching it is
+     * the point; a tap gives up on the watching and takes the rest at once.
+     */
+    fun finishGame() {
+        if (finish?.isActive == true) return
+        val snapshot = table.value.game
+        if (snapshot.isWon) return
+
+        hurry = false
+        table.value = table.value.copy(hint = null, notice = null, finishing = true)
+
+        finish = viewModelScope.launch {
+            val line = withContext(Dispatchers.Default) { snapshot.finishingLine() }
+            // Say nothing if the board moved on while the search was running.
+            if (table.value.game != snapshot) return@launch
+
+            if (line == null) {
+                table.value = table.value.copy(finishing = false, notice = Notice.NO_FINISH)
+                return@launch
+            }
+            for (action in line) {
+                commit(action, save = false)
+                if (!hurry) delay(FINISH_MILLIS.toLong())
+            }
+            table.value = table.value.copy(finishing = false)
+            // One write at the end rather than one per move: nothing here is a
+            // decision worth preserving halfway through, and onAppPause still
+            // catches a finish interrupted by leaving the tool.
+            persist()
+        }
+    }
+
+    /** Stop watching and take the remaining moves at once. */
+    fun hurryFinish() {
+        hurry = true
     }
 
     /**
@@ -154,7 +221,14 @@ class SolitaireViewModel(private val store: SolitaireStore) : LightViewModel<Uni
         persist()
     }
 
-    private fun commit(action: Action, animate: Boolean = true) {
+    private fun stopFinishing() {
+        finish?.cancel()
+        finish = null
+        hurry = false
+        if (table.value.finishing) table.value = table.value.copy(finishing = false)
+    }
+
+    private fun commit(action: Action, animate: Boolean = true, save: Boolean = true) {
         val current = table.value.game
         val next = current.perform(action) ?: return
         if (next == current) return
@@ -173,8 +247,9 @@ class SolitaireViewModel(private val store: SolitaireStore) : LightViewModel<Uni
                 MoveAnimation(++animationId, cards, sourceOf(action), destinationOf(action))
             },
             notice = noticeFor(next),
+            finishing = table.value.finishing,
         )
-        persist()
+        if (save) persist()
     }
 
     /** Cheap and exact: no move on the table and none anywhere in the stock. */
@@ -231,6 +306,7 @@ class HomeScreen(
         val canUndo by viewModel.canUndo.collectAsState()
         val themeColors by LightThemeController.colors.collectAsState()
         val game = table.game
+        var choosing by remember { mutableStateOf(false) }
 
         LightTheme(colors = themeColors) {
             val foreground = LightThemeTokens.colors.content
@@ -260,13 +336,23 @@ class HomeScreen(
                     LightText(
                         text = "New",
                         variant = LightTextVariant.Detail,
-                        modifier = Modifier.lightClickable { viewModel.newGame() },
+                        modifier = Modifier.lightClickable { choosing = true },
                     )
                     LightText(
                         text = "Hint",
                         variant = LightTextVariant.Detail,
                         modifier = Modifier.lightClickable { viewModel.requestHint() },
                     )
+                    // Only once there is nothing left to turn over. Before that
+                    // it would be offering to play the part that is still a game.
+                    if (game.isFullyRevealed && !game.isWon) {
+                        LightText(
+                            text = "Finish",
+                            variant = LightTextVariant.Detail,
+                            lighten = table.finishing,
+                            modifier = Modifier.lightClickable { viewModel.finishGame() },
+                        )
+                    }
                     LightText(
                         text = game.moves.toString(),
                         variant = LightTextVariant.Detail,
@@ -307,7 +393,10 @@ class HomeScreen(
                         if (flightPlan == null) return@LaunchedEffect
                         progress.animateTo(
                             targetValue = 1f,
-                            animationSpec = tween(FLIGHT_MILLIS, easing = FastOutSlowInEasing),
+                            animationSpec = tween(
+                                durationMillis = if (table.finishing) FINISH_MILLIS else FLIGHT_MILLIS,
+                                easing = FastOutSlowInEasing,
+                            ),
                         )
                         landed = true
                     }
@@ -458,8 +547,12 @@ class HomeScreen(
                     Box(
                         Modifier
                             .fillMaxSize()
-                            .pointerInput(slots) {
+                            .pointerInput(slots, table.finishing) {
                                 detectTapGestures { offset ->
+                                    if (table.finishing) {
+                                        viewModel.hurryFinish()
+                                        return@detectTapGestures
+                                    }
                                     val slot = slots.hit(offset.x.toDp(), offset.y.toDp())
                                     if (slot != null) viewModel.tap(slot.pile, slot.cardIndex)
                                 }
@@ -469,7 +562,8 @@ class HomeScreen(
                                     onDragStart = { offset ->
                                         val slot = slots.hit(offset.x.toDp(), offset.y.toDp())
                                         val state = viewModel.table.value.game
-                                        if (slot != null &&
+                                        if (!table.finishing &&
+                                            slot != null &&
                                             slot.cardIndex >= 0 &&
                                             state.isDraggable(slot.pile, slot.cardIndex)
                                         ) {
@@ -509,8 +603,13 @@ class HomeScreen(
                     )
 
                     val notice = when {
+                        table.finishing -> "Finishing"
                         table.notice == Notice.UNWINNABLE -> "This deal can't be won"
                         table.notice == Notice.DEAD_END -> "No moves left"
+                        // Not the same as unwinnable, and it must not read like
+                        // it: the search that says a deal is lost is the other
+                        // one, and it takes its time over it.
+                        table.notice == Notice.NO_FINISH -> "No quick finish from here"
                         table.checking -> "Checking"
                         else -> null
                     }
@@ -570,6 +669,46 @@ class HomeScreen(
                                         modifier = Modifier.lightClickable { viewModel.newGame() },
                                     )
                                 }
+                            }
+                        }
+                    }
+
+                    // Dealing throws away the board you are on, so it is a
+                    // decision either way. Making it name the game turns that
+                    // into the one place either game can be reached from, which
+                    // beats a fifth control in a bar four items wide.
+                    if (choosing) {
+                        Box(
+                            modifier = Modifier.fillMaxSize().background(background),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                LightText(
+                                    text = "New game",
+                                    variant = LightTextVariant.Detail,
+                                    lighten = true,
+                                    modifier = Modifier.padding(bottom = 16.dp),
+                                )
+                                for (variant in Variant.entries) {
+                                    LightText(
+                                        text = variant.label,
+                                        variant = LightTextVariant.Copy,
+                                        modifier = Modifier
+                                            .padding(vertical = 6.dp)
+                                            .lightClickable {
+                                                choosing = false
+                                                viewModel.newGame(variant)
+                                            },
+                                    )
+                                }
+                                LightText(
+                                    text = "Keep playing",
+                                    variant = LightTextVariant.Detail,
+                                    lighten = true,
+                                    modifier = Modifier
+                                        .padding(top = 20.dp)
+                                        .lightClickable { choosing = false },
+                                )
                             }
                         }
                     }
@@ -744,8 +883,13 @@ private fun buildSlots(game: Game, geometry: TableGeometry): List<Slot> {
         slots.add(Slot(pile, cardIndex, x, y, geometry.cardW, geometry.cardH))
     }
 
-    add(Pile.Stock, game.stock.lastIndex, geometry.columnX(0), 0.dp)
-    add(Pile.Waste, game.waste.lastIndex, geometry.columnX(1), 0.dp)
+    // Yukon has no stock, so it gets no stock and no waste slot rather than two
+    // empty outlines that never do anything. Nothing else needs to know: a pile
+    // with no slot is a pile nothing can be dropped on, drawn from or tapped.
+    if (game.variant.hasStock) {
+        add(Pile.Stock, game.stock.lastIndex, geometry.columnX(0), 0.dp)
+        add(Pile.Waste, game.waste.lastIndex, geometry.columnX(1), 0.dp)
+    }
     for (i in 0 until Game.FOUNDATIONS) {
         add(Pile.Foundation(i), game.foundations[i].lastIndex, geometry.columnX(3 + i), 0.dp)
     }
