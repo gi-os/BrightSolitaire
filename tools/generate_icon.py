@@ -1,217 +1,181 @@
 #!/usr/bin/env python3
-"""
-Builds the Solitaire mark: a white capital S on black.
+"""Build BrightSolitaire's launcher mark.
 
-Same convention as the rest of the gi-os Light collection, where LightFog's
-scripts/generate-icon.js draws the first letter of the app name in Public Sans
-on a black square. That one only needs a PNG because LightFog is a plain Android
-app with a launcher icon. LightOS tools have no launcher icon, so this also emits
-an Android vector drawable that overrides the SDK's splash mark.
+Part of the unified Bright* icon set. Every mark in the collection is drawn on
+the same 108x108 adaptive-icon canvas, inside the same 18..90 safe zone, at the
+same two stroke weights, in white on black and nothing else. The Light Phone
+III panel is black and white; a mark with a mid-tone in it dithers.
 
-    python3 tools/generate_icon.py path/to/PublicSans-Regular.ttf
+Edit MARK below and re-run. The vector outputs need nothing but the standard
+library. The raster outputs need Pillow and cairosvg, and are skipped with a
+message if those are missing, because the vectors are what actually ship on
+API 26 and up.
 
-Writes:
-    assets/icon.png                                       1024 square, for the repo
-    tool/src/main/res/drawable/loading_text_icon.xml       the splash mark
-    tool/src/main/res/drawable/ic_launcher_foreground.xml  launcher icon, letter
-    tool/src/main/res/drawable/ic_launcher_background.xml  launcher icon, black
-    tool/src/main/res/mipmap-anydpi-v26/ic_launcher.xml    the adaptive icon
+    python3 tools/generate_icon.py
 """
 
-import sys
-from pathlib import Path
+import os
+import re
 
-from fontTools.pens.boundsPen import BoundsPen
-from fontTools.pens.svgPathPen import SVGPathPen
-from fontTools.pens.transformPen import TransformPen
-from fontTools.misc.transform import Identity
-from fontTools.ttLib import TTFont
-from PIL import Image, ImageDraw, ImageFont
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-LETTER = "S"
+# ---- the mark ---------------------------------------------------------------
+# Each entry is (path data, stroke width, even-odd fill). A stroke width of 0
+# means the path is filled instead of stroked.
 
-# Matches LightFog: an 85.4pt letter on a 100pt square.
-PNG_SIZE = 1024
-PNG_FONT_RATIO = 85.4 / 100
+MARK = [
+    ('M26.00,26.00 H52.00 A4.00,4.00 0 0 1 56.00,30.00 V72.00 A4.00,4.00 0 0 1 52.00,76.00 H26.00 A4.00,4.00 0 0 1 22.00,72.00 V30.00 A4.00,4.00 0 0 1 26.00,26.00 Z', 5, False),
+    ('M56.00,32.00 H82.00 A4.00,4.00 0 0 1 86.00,36.00 V78.00 A4.00,4.00 0 0 1 82.00,82.00 H56.00 A4.00,4.00 0 0 1 52.00,78.00 V36.00 A4.00,4.00 0 0 1 56.00,32.00 Z', 5, False),
+    ('M69,46 L78,57 L69,68 L60,57 Z', 0, False),
+]
 
-# The SDK's own splash drawable is a 240 square, so this one has to be too.
-VECTOR_SIZE = 240
-# Height of the letter as a fraction of the drawable. 85.4pt of Public Sans has a
-# cap height near 62pt, so the same proportion holds here.
-VECTOR_LETTER_RATIO = 0.62
+# Where the mark is written, and at what viewport. 108 is the adaptive-icon
+# canvas; 240 is the LightOS splash mark, which is the only place a LightOS
+# tool can show a mark of its own.
+TARGETS = [
+    ('tool/src/main/res/drawable/ic_launcher_foreground.xml', 108),
+    ('tool/src/main/res/drawable/loading_text_icon.xml', 240),
+]
 
-# An adaptive icon is always a 108 square, of which the middle 72 is the part
-# guaranteed to survive whatever mask the launcher applies. Keeping the letter at
-# the same 0.62 of that visible square puts it at 0.62 * 72 / 108 of the whole.
-LAUNCHER_SIZE = 108
-LAUNCHER_LETTER_RATIO = 0.62 * 72 / 108
+# Legacy rasters: (path, pixels, circular mask, inset, transparent plate).
+# Inset shrinks the mark inside the plate - a legacy square icon gets no
+# launcher mask, so it needs the margin the mask would otherwise have given it.
+# A transparent plate is for an adaptive foreground layer, which is composited
+# over the plate rather than carrying one of its own.
+RASTERS = [
+    ('tool/src/main/res/mipmap-hdpi/ic_launcher.png', 72, False, 0.72, False),
+    ('tool/src/main/res/mipmap-mdpi/ic_launcher.png', 48, False, 0.72, False),
+    ('tool/src/main/res/mipmap-xhdpi/ic_launcher.png', 96, False, 0.72, False),
+    ('tool/src/main/res/mipmap-xxhdpi/ic_launcher.png', 144, False, 0.72, False),
+    ('tool/src/main/res/mipmap-xxxhdpi/ic_launcher.png', 192, False, 0.72, False),
+    ('assets/icon.png', 240, False, 1.0, False),
+]
 
-# Legacy launcher icon sizes. Never masked, so these are full bleed like LightFog's.
-LAUNCHER_DENSITIES = {
-    "mdpi": 48,
-    "hdpi": 72,
-    "xhdpi": 96,
-    "xxhdpi": 144,
-    "xxxhdpi": 192,
-}
+# Files that are the same in every app: the black plate, and the adaptive-icon
+# wrapper that points the launcher at the plate and the mark.
+STATIC = [
+    ('tool/src/main/res/drawable/ic_launcher_background.xml', '<?xml version="1.0" encoding="utf-8"?>\n<!-- Solid black plate. The whole set is black and white; nothing else belongs here. -->\n<vector xmlns:android="http://schemas.android.com/apk/res/android"\n    android:width="108dp"\n    android:height="108dp"\n    android:viewportWidth="108"\n    android:viewportHeight="108">\n    <path\n        android:pathData="M0,0 H108 V108 H0 Z"\n        android:fillColor="#000000" />\n</vector>\n'),
+    ('tool/src/main/res/mipmap-anydpi-v26/ic_launcher.xml', '<?xml version="1.0" encoding="utf-8"?>\n<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n    <background android:drawable="@drawable/ic_launcher_background" />\n    <foreground android:drawable="@drawable/ic_launcher_foreground" />\n    <monochrome android:drawable="@drawable/ic_launcher_foreground" />\n</adaptive-icon>\n'),
+]
 
-REPO = Path(__file__).resolve().parent.parent
+STROKE = ('        android:fillColor="#00000000"\n'
+          '        android:strokeColor="#FFFFFF"\n'
+          '        android:strokeWidth="%g"\n'
+          '        android:strokeLineCap="round"\n'
+          '        android:strokeLineJoin="round" />')
 
-
-def raster(font_path: Path, size: int) -> Image.Image:
-    """A white letter on a black square, [size] px across."""
-    image = Image.new("L", (size, size), 0)
-    draw = ImageDraw.Draw(image)
-    font = ImageFont.truetype(str(font_path), int(size * PNG_FONT_RATIO))
-
-    # Centre on the ink, not on the line box, so the letter sits optically true.
-    left, top, right, bottom = draw.textbbox((0, 0), LETTER, font=font)
-    x = (size - (right - left)) / 2 - left
-    y = (size - (bottom - top)) / 2 - top
-    draw.text((x, y), LETTER, fill=255, font=font)
-    return image.convert("RGB")
-
-
-def write_png(font_path: Path) -> Path:
-    out = REPO / "assets" / "icon.png"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    raster(font_path, PNG_SIZE).save(out, optimize=True)
-    return out
-
-
-def letter_path(font_path: Path, box: float, letter_ratio: float) -> str:
-    """The letter as SVG path data, scaled to [letter_ratio] of a [box] square."""
-    font = TTFont(str(font_path))
-    glyph_set = font.getGlyphSet()
-    glyph = glyph_set[font.getBestCmap()[ord(LETTER)]]
-
-    bounds = BoundsPen(glyph_set)
-    glyph.draw(bounds)
-    x_min, y_min, x_max, y_max = bounds.bounds
-
-    scale = (box * letter_ratio) / (y_max - y_min)
-    # Flip the y axis: fonts measure up from the baseline, drawables measure down.
-    transform = Identity.translate(
-        (box - (x_max - x_min) * scale) / 2 - x_min * scale,
-        (box + (y_max - y_min) * scale) / 2 + y_min * scale,
-    ).scale(scale, -scale)
-
-    pen = SVGPathPen(glyph_set, ntos=lambda v: f"{v:.2f}")
-    glyph.draw(TransformPen(pen, transform))
-    return pen.getCommands()
-
-
-def write_launcher(font_path: Path) -> list[Path]:
-    """
-    The launcher icon, as an adaptive icon.
-
-    minSdk is 34, so every device that can install this understands adaptive
-    icons and no legacy density buckets are needed.
-    """
-    path_data = letter_path(font_path, LAUNCHER_SIZE, LAUNCHER_LETTER_RATIO)
-    res = REPO / "tool" / "src" / "main" / "res"
-
-    foreground = res / "drawable" / "ic_launcher_foreground.xml"
-    foreground.parent.mkdir(parents=True, exist_ok=True)
-    foreground.write_text(f"""<?xml version="1.0" encoding="utf-8"?>
-<!-- Generated by tools/generate_icon.py. -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="{LAUNCHER_SIZE}dp"
-    android:height="{LAUNCHER_SIZE}dp"
-    android:viewportWidth="{LAUNCHER_SIZE}"
-    android:viewportHeight="{LAUNCHER_SIZE}">
-  <path
-      android:pathData="{path_data}"
-      android:fillColor="#fff"
-      android:fillType="nonZero"/>
-</vector>
-""")
-
-    background = res / "drawable" / "ic_launcher_background.xml"
-    background.write_text(f"""<?xml version="1.0" encoding="utf-8"?>
-<!-- Generated by tools/generate_icon.py. -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="{LAUNCHER_SIZE}dp"
-    android:height="{LAUNCHER_SIZE}dp"
-    android:viewportWidth="{LAUNCHER_SIZE}"
-    android:viewportHeight="{LAUNCHER_SIZE}">
-  <path
-      android:pathData="M0,0h{LAUNCHER_SIZE}v{LAUNCHER_SIZE}h-{LAUNCHER_SIZE}z"
-      android:fillColor="#000"/>
-</vector>
-""")
-
-    adaptive = res / "mipmap-anydpi-v26" / "ic_launcher.xml"
-    adaptive.parent.mkdir(parents=True, exist_ok=True)
-    adaptive.write_text("""<?xml version="1.0" encoding="utf-8"?>
-<!-- Generated by tools/generate_icon.py. -->
-<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@drawable/ic_launcher_background" />
-    <foreground android:drawable="@drawable/ic_launcher_foreground" />
-    <monochrome android:drawable="@drawable/ic_launcher_foreground" />
-</adaptive-icon>
-""")
-
-    written = [foreground, background, adaptive]
-
-    # Raster copies as well, at the unqualified densities.
-    #
-    # Android itself never reads these: minSdk is 34, so the anydpi-v26 folder
-    # always wins and the launcher gets the adaptive icon. They are here for
-    # everything that reads an APK without applying resource qualifiers. Plenty of
-    # tools do, and an icon that only exists as vector XML comes back blank in
-    # those: they cannot rasterise it, so they find the reference and give up.
-    # A few kilobytes buys an icon that shows up everywhere.
-    for folder, size in LAUNCHER_DENSITIES.items():
-        png = res / f"mipmap-{folder}" / "ic_launcher.png"
-        png.parent.mkdir(parents=True, exist_ok=True)
-        raster(font_path, size).save(png, optimize=True)
-        written.append(png)
-
-    return written
-
-
-def write_vector(font_path: Path) -> Path:
-    path_data = letter_path(font_path, VECTOR_SIZE, VECTOR_LETTER_RATIO)
-
-    xml = f"""<?xml version="1.0" encoding="utf-8"?>
+HEADER = '''<?xml version="1.0" encoding="utf-8"?>
 <!--
-    Overrides the drawable of the same name in sdk:client, which is the SDK's
-    "loading..." splash mark. Resources in the application module take
-    precedence over resources from a library module, so this needs no manifest
-    change: LightOS tools have no launcher icon, and the splash is the one place
-    a tool can show a mark of its own.
+  BrightSolitaire launcher mark. One of the unified Bright* set: 108 canvas, 18..90
+  safe zone, white on black, no greys and no colour anywhere.
 
-    Generated by tools/generate_icon.py. Public Sans, the same letterform the
-    rest of the gi-os Light collection uses.
+  Generated by tools/generate_icon.py - edit the geometry there, not here.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="{VECTOR_SIZE}dp"
-    android:height="{VECTOR_SIZE}dp"
-    android:viewportWidth="{VECTOR_SIZE}"
-    android:viewportHeight="{VECTOR_SIZE}">
-  <path
-      android:pathData="{path_data}"
-      android:fillColor="#fff"
-      android:fillType="nonZero"/>
+    android:width="%(vp)sdp"
+    android:height="%(vp)sdp"
+    android:viewportWidth="%(vp)s"
+    android:viewportHeight="%(vp)s">
+%(paths)s
 </vector>
-"""
-    out = REPO / "tool" / "src" / "main" / "res" / "drawable" / "loading_text_icon.xml"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(xml)
-    return out
+'''
 
 
-def main() -> None:
-    if len(sys.argv) != 2:
-        sys.exit(__doc__)
-    font_path = Path(sys.argv[1])
-    if not font_path.is_file():
-        sys.exit(f"no font at {font_path}")
-    written = [write_png(font_path), write_vector(font_path), *write_launcher(font_path)]
-    for path in written:
-        print(f"wrote {path.relative_to(REPO)}")
+def scale_path(d, k):
+    """Multiply every number in a path by k.
+
+    Safe on this data because every path is absolute and uniformly scaled, so
+    arc rx/ry scale with everything else. The large-arc and sweep flags are 0
+    or 1 and a naive pass would scale them into nonsense, so each arc command
+    is matched whole and its three flag fields copied through untouched."""
+    if k == 1.0:
+        return d
+    num = re.compile(r'-?\d*\.?\d+')
+    arc = re.compile(r'A\s*(-?[\d.]+)\s*,?\s*(-?[\d.]+)\s+(-?[\d.]+)\s+([01])\s*,?\s*([01])\s+')
+
+    def one(s):
+        return ('%.3f' % (float(s) * k)).rstrip('0').rstrip('.')
+
+    def plain(s):
+        return num.sub(lambda m: one(m.group(0)), s)
+
+    out, i = [], 0
+    for m in arc.finditer(d):
+        out.append(plain(d[i:m.start()]))
+        out.append('A%s,%s %s %s %s ' % (one(m.group(1)), one(m.group(2)),
+                                         m.group(3), m.group(4), m.group(5)))
+        i = m.end()
+    out.append(plain(d[i:]))
+    return ''.join(out)
 
 
-if __name__ == "__main__":
-    main()
+def render(vp):
+    k = vp / 108.0
+    body = []
+    for d, w, even in MARK:
+        pd = scale_path(d, k)
+        if w == 0:
+            ft = '\n        android:fillType="evenOdd"' if even else ''
+            body.append('    <path\n        android:pathData="%s"\n'
+                        '        android:fillColor="#FFFFFF"%s />' % (pd, ft))
+        else:
+            body.append('    <path\n        android:pathData="%s"\n%s'
+                        % (pd, STROKE % (w * k)))
+    return HEADER % {'vp': vp, 'paths': '\n'.join(body)}
+
+
+def svg(inset=1.0, transparent=False):
+    m = (1 - inset) * 54
+    s = ['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">']
+    if not transparent:
+        s.append('<rect width="108" height="108" fill="#000000"/>')
+    s += [
+         '<g transform="translate(%.3f,%.3f) scale(%s)">' % (m, m, inset)]
+    for d, w, even in MARK:
+        if w == 0:
+            fr = ' fill-rule="evenodd"' if even else ''
+            s.append('<path d="%s" fill="#FFFFFF"%s/>' % (d, fr))
+        else:
+            s.append('<path d="%s" fill="none" stroke="#FFFFFF" stroke-width="%s" '
+                     'stroke-linecap="round" stroke-linejoin="round"/>' % (d, w))
+    s.append('</g></svg>')
+    return ''.join(s)
+
+
+def write(rel, text):
+    p = os.path.join(ROOT, rel)
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    open(p, 'w').write(text)
+    print('wrote', rel)
+
+
+def rasters():
+    try:
+        import io
+        import cairosvg
+        from PIL import Image, ImageDraw
+    except ImportError:
+        print('Pillow/cairosvg not installed - skipped the rasters. The adaptive '
+              'icon is what ships on API 26 and up.')
+        return
+    for rel, px, round_, inset, transparent in RASTERS:
+        raw = cairosvg.svg2png(bytestring=svg(inset, transparent).encode(),
+                               output_width=px * 4, output_height=px * 4)
+        im = Image.open(io.BytesIO(raw)).convert('RGBA')
+        if round_:
+            mask = Image.new('L', im.size, 0)
+            ImageDraw.Draw(mask).ellipse([0, 0, im.size[0] - 1, im.size[1] - 1], fill=255)
+            im.putalpha(mask)
+        im = im.resize((px, px), Image.LANCZOS)
+        p = os.path.join(ROOT, rel)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        im.save(p, 'WEBP' if rel.endswith('.webp') else 'PNG')
+        print('wrote', rel)
+
+
+if __name__ == '__main__':
+    for rel, vp in TARGETS:
+        write(rel, render(vp))
+    for rel, text in STATIC:
+        write(rel, text)
+    rasters()
