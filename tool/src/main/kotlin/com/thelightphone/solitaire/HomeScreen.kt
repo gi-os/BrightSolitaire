@@ -49,9 +49,6 @@ import kotlinx.coroutines.launch
 
 private const val UNDO_LIMIT = 120
 
-/** Room at the bottom of the display for the LightOS back button. */
-private val BACK_BUTTON_INSET = 44.dp
-
 /** Short enough to stay out of the way, long enough to read as movement. */
 private const val FLIGHT_MILLIS = 170
 
@@ -103,8 +100,19 @@ class SolitaireViewModel(private val store: SolitaireStore) : LightViewModel<Uni
     }
 
     fun newGame() {
-        history.clear()
-        canUndo.value = false
+        // Keep the old game on the undo stack so a stray tap on "New game"
+        // mid-game can be taken back. A won game has nothing left to return to.
+        // An untouched fresh deal leaves the stack alone, so a second tap still
+        // lets Undo bring back the game before it.
+        val current = table.value.game
+        when {
+            current.isWon -> history.clear()
+            current.moves > 0 -> {
+                history.addLast(current)
+                while (history.size > UNDO_LIMIT) history.removeFirst()
+            }
+        }
+        canUndo.value = history.isNotEmpty()
         hintCursor = 0
         table.value = Table(Game.deal(System.currentTimeMillis()))
         persist()
@@ -247,8 +255,7 @@ class HomeScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(background)
-                    .padding(bottom = BACK_BUTTON_INSET),
+                    .background(background),
             ) {
                 Row(
                     modifier = Modifier
@@ -258,7 +265,7 @@ class HomeScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     LightText(
-                        text = "New",
+                        text = "New game",
                         variant = LightTextVariant.Detail,
                         modifier = Modifier.lightClickable { viewModel.newGame() },
                     )
@@ -515,15 +522,31 @@ class HomeScreen(
                         else -> null
                     }
                     if (notice != null && !game.isWon) {
-                        LightText(
-                            text = notice,
-                            variant = LightTextVariant.Detail,
-                            lighten = true,
+                        // A lost deal gets a way out right where the player is
+                        // looking, not only the small link in the top bar.
+                        val lost = table.notice != null
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
                                 .background(background)
                                 .padding(horizontal = 10.dp, vertical = 2.dp),
-                        )
+                        ) {
+                            LightText(
+                                text = notice,
+                                variant = LightTextVariant.Detail,
+                                lighten = true,
+                            )
+                            if (lost) {
+                                LightText(
+                                    text = "New game",
+                                    variant = LightTextVariant.Copy,
+                                    modifier = Modifier
+                                        .padding(top = 4.dp)
+                                        .lightClickable { viewModel.newGame() },
+                                )
+                            }
+                        }
                     }
 
                     if (game.isWon) {
